@@ -9,6 +9,24 @@ function runFeature(name, feature) {
     }
 }
 
+// Shared helper: runs a callback on load, scroll and resize, at most once per frame.
+function onScrollOrResize(callback) {
+    let waiting = false;
+
+    function requestUpdate() {
+        if (waiting) return;
+        waiting = true;
+        window.requestAnimationFrame(function () {
+            waiting = false;
+            callback();
+        });
+    }
+
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+    callback();
+}
+
 /* ==========================================================
    1. DARK / LIGHT MODE
    - Uses the visitor's saved choice, else their device setting
@@ -47,8 +65,11 @@ function initThemeToggle() {
     const darkQuery = window.matchMedia
         ? window.matchMedia("(prefers-color-scheme: dark)")
         : null;
+    const deviceTheme = function () {
+        return darkQuery && darkQuery.matches ? "dark" : "light";
+    };
 
-    let theme = readSavedTheme() || (darkQuery && darkQuery.matches ? "dark" : "light");
+    let theme = readSavedTheme() || deviceTheme();
     applyTheme(theme, button);
 
     button.addEventListener("click", function () {
@@ -59,9 +80,9 @@ function initThemeToggle() {
 
     // If the visitor never chose a theme, follow their device when it changes.
     if (darkQuery && darkQuery.addEventListener) {
-        darkQuery.addEventListener("change", function (event) {
+        darkQuery.addEventListener("change", function () {
             if (readSavedTheme()) return;
-            theme = event.matches ? "dark" : "light";
+            theme = deviceTheme();
             applyTheme(theme, button);
         });
     }
@@ -97,8 +118,7 @@ function initLightbox() {
         index = (i + group.length) % group.length;
 
         const thumbnail = group[index].querySelector("img");
-        const figure = group[index].closest("figure");
-        const figcaption = figure ? figure.querySelector("figcaption") : null;
+        const figcaption = group[index].closest("figure")?.querySelector("figcaption");
 
         caption.textContent = figcaption ? figcaption.textContent : thumbnail.alt;
         counter.textContent = (index + 1) + " of " + group.length;
@@ -128,9 +148,7 @@ function initLightbox() {
     }
 
     triggers.forEach(function (trigger) {
-        trigger.addEventListener("click", function () {
-            openLightbox(trigger);
-        });
+        trigger.addEventListener("click", function () { openLightbox(trigger); });
     });
 
     prevButton.addEventListener("click", function () { showImage(index - 1); });
@@ -177,11 +195,8 @@ function initActiveNav() {
     if (!sections.length) return;
 
     const header = document.querySelector("header");
-    let waiting = false;
 
     function update() {
-        waiting = false;
-
         // a section counts as "current" once it passes this line on the screen
         const headerHeight = header ? header.offsetHeight : 0;
         const line = headerHeight + window.innerHeight * 0.25;
@@ -205,16 +220,65 @@ function initActiveNav() {
         });
     }
 
-    function requestUpdate() {
-        if (!waiting) {
-            waiting = true;
-            window.requestAnimationFrame(update);
-        }
+    onScrollOrResize(update);
+}
+
+/* ==========================================================
+   4. BACK-TO-TOP BUTTON
+   - Appears after the visitor scrolls down a little
+   - Scrolls to the top (smooth unless reduced motion is set in CSS)
+   - Moves focus to the logo so keyboard users are not left
+     on a button that has just disappeared
+   ========================================================== */
+
+function initBackToTop() {
+    const button = document.getElementById("back-to-top");
+    if (!button) return;
+
+    const SHOW_AFTER = 600; // pixels scrolled before the button appears
+
+    onScrollOrResize(function () {
+        button.hidden = window.scrollY < SHOW_AFTER;
+    });
+
+    button.addEventListener("click", function () {
+        window.scrollTo({ top: 0 });
+        const logo = document.querySelector(".logo");
+        if (logo) logo.focus({ preventScroll: true });
+    });
+}
+
+/* ==========================================================
+   5. COPY EMAIL TO CLIPBOARD
+   - One click copies the address shown in the contact section
+   - Announces the result in a live region for screen readers
+   - Shows a helpful message if the clipboard is unavailable
+   ========================================================== */
+
+function initCopyEmail() {
+    const button = document.getElementById("copy-email");
+    const status = document.getElementById("copy-status");
+    const emailLink = document.querySelector("#contact a[href^='mailto:']");
+
+    if (!button || !status || !emailLink) return;
+
+    let timer = null;
+
+    function showStatus(message) {
+        status.textContent = message;
+        clearTimeout(timer);
+        timer = setTimeout(function () { status.textContent = ""; }, 3000);
     }
 
-    window.addEventListener("scroll", requestUpdate, { passive: true });
-    window.addEventListener("resize", requestUpdate);
-    update();
+    button.addEventListener("click", async function () {
+        const email = emailLink.textContent.trim();
+        try {
+            await navigator.clipboard.writeText(email);
+            showStatus("Email copied to clipboard.");
+        } catch (error) {
+            showStatus("Could not copy automatically. Please copy it manually.");
+        }
+    });
 }
 
 /* ---------- Initialise ---------- */
@@ -222,3 +286,5 @@ function initActiveNav() {
 runFeature("Dark mode", initThemeToggle);
 runFeature("Lightbox", initLightbox);
 runFeature("Active navigation", initActiveNav);
+runFeature("Back to top", initBackToTop);
+runFeature("Copy email", initCopyEmail);
