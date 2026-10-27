@@ -281,6 +281,29 @@ function initCopyEmail() {
     });
 }
 
+/* ==========================================================
+   6. READING PROGRESS BAR
+   - Thin bar under the header that fills as the visitor scrolls
+   - Shows how far through the page they are
+   - Purely visual, so it is hidden from screen readers in the HTML
+   - Reuses the shared onScrollOrResize helper (once per frame)
+   ========================================================== */
+
+function initScrollProgress() {
+    const bar = document.getElementById("scroll-progress");
+    if (!bar) return;
+
+    onScrollOrResize(function () {
+        // total distance that can be scrolled (page height minus one screen)
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+
+        // 0 = top of page, 1 = bottom of page (guards against a page too short to scroll)
+        const progress = scrollable > 0 ? Math.min(window.scrollY / scrollable, 1) : 0;
+
+        bar.style.transform = "scaleX(" + progress + ")";
+    });
+}
+
 /* ---------- Initialise ---------- */
 // The script tag uses "defer", so the page is already parsed here.
 runFeature("Dark mode", initThemeToggle);
@@ -288,3 +311,4 @@ runFeature("Lightbox", initLightbox);
 runFeature("Active navigation", initActiveNav);
 runFeature("Back to top", initBackToTop);
 runFeature("Copy email", initCopyEmail);
+runFeature("Scroll progress", initScrollProgress);

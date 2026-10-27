@@ -171,6 +171,19 @@ header {
     transition: background-color 0.3s, border-color 0.3s;
 }
 
+/* reading progress bar: sits on the bottom edge of the header, width is set by JS */
+#scroll-progress {
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 100%;
+    height: 4px;
+    background-color: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    pointer-events: none;
+}
+
 nav {
     display: flex;
     flex-wrap: wrap;
