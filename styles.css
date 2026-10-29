@@ -179,7 +179,7 @@ header {
     width: 100%;
     height: 4px;
     background-color: var(--accent);
-    transform: scaleX(0);
+    transform: scaleX(var(--progress, 0));
     transform-origin: left;
     pointer-events: none;
 }
@@ -515,6 +515,28 @@ article > ul li {
 
 #back-to-top[hidden] {
     display: none;
+}
+
+/* scroll reveal: JS adds .reveal, then .is-visible when the element enters the screen */
+.reveal {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    /* background/border are repeated so the theme change on cards still fades smoothly */
+    transition: opacity 0.6s ease, transform 0.6s ease,
+                background-color 0.3s, border-color 0.3s;
+}
+
+.reveal.is-visible {
+    opacity: 1;
+    transform: none;
+}
+
+/* always show everything when printing */
+@media print {
+    .reveal {
+        opacity: 1;
+        transform: none;
+    }
 }
 
 /* footer */

@@ -10,20 +10,34 @@ function runFeature(name, feature) {
 }
 
 // Shared helper: runs a callback on load, scroll and resize, at most once per frame.
-function onScrollOrResize(callback) {
-    let waiting = false;
+const scrollCallbacks = [];
+let scrollUpdateQueued = false;
 
-    function requestUpdate() {
-        if (waiting) return;
-        waiting = true;
-        window.requestAnimationFrame(function () {
-            waiting = false;
+function runScrollCallbacks() {
+    scrollUpdateQueued = false;
+    scrollCallbacks.forEach(function (callback) {
+        // one broken callback must not stop the others
+        try {
             callback();
-        });
-    }
+        } catch (error) {
+            console.warn("A scroll/resize callback failed:", error);
+        }
+    });
+}
 
-    window.addEventListener("scroll", requestUpdate, { passive: true });
-    window.addEventListener("resize", requestUpdate);
+function requestScrollUpdate() {
+    if (scrollUpdateQueued) return;
+    scrollUpdateQueued = true;
+    window.requestAnimationFrame(runScrollCallbacks);
+}
+
+function onScrollOrResize(callback) {
+    // the listeners are added only once, however many features register
+    if (!scrollCallbacks.length) {
+        window.addEventListener("scroll", requestScrollUpdate, { passive: true });
+        window.addEventListener("resize", requestScrollUpdate);
+    }
+    scrollCallbacks.push(callback);
     callback();
 }
 
@@ -289,18 +303,54 @@ function initCopyEmail() {
    - Reuses the shared onScrollOrResize helper (once per frame)
    ========================================================== */
 
+function getScrollProgress() {
+    // total distance that can be scrolled (page height minus one screen)
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+
+    // 0 = top of page, 1 = bottom of page (guards against a page too short to scroll)
+    if (scrollable <= 0) return 0;
+    return Math.min(Math.max(window.scrollY / scrollable, 0), 1);
+}
+
 function initScrollProgress() {
     const bar = document.getElementById("scroll-progress");
     if (!bar) return;
 
+    // JS only supplies the number; the CSS decides how the bar is drawn
     onScrollOrResize(function () {
-        // total distance that can be scrolled (page height minus one screen)
-        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        bar.style.setProperty("--progress", getScrollProgress());
+    });
+}
 
-        // 0 = top of page, 1 = bottom of page (guards against a page too short to scroll)
-        const progress = scrollable > 0 ? Math.min(window.scrollY / scrollable, 1) : 0;
+/* ==========================================================
+   7. SCROLL REVEAL
+   - Project cards and the About section fade in as they
+     scroll into view
+   - The hiding class is added by JS, so if JS fails the
+     content simply stays visible
+   - Skipped when the visitor prefers reduced motion or the
+     browser has no IntersectionObserver
+   ========================================================== */
 
-        bar.style.transform = "scaleX(" + progress + ")";
+function initScrollReveal() {
+    const items = document.querySelectorAll("main article, .about-layout");
+    if (!items.length || !("IntersectionObserver" in window)) return;
+
+    const reducedMotion = window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) return;
+
+    const observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);   // reveal once, then stop watching
+        });
+    }, { threshold: 0.1 });
+
+    items.forEach(function (item) {
+        item.classList.add("reveal");
+        observer.observe(item);
     });
 }
 
@@ -312,3 +362,4 @@ runFeature("Active navigation", initActiveNav);
 runFeature("Back to top", initBackToTop);
 runFeature("Copy email", initCopyEmail);
 runFeature("Scroll progress", initScrollProgress);
+runFeature("Scroll reveal", initScrollReveal);
